@@ -31,3 +31,181 @@
   <script src="app.js"></script>
 </body>
 </html>
+ 
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Exercise Shuffle — MVP</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:900px;margin:24px auto;padding:16px;color:#111}
+  h1{margin:0 0 8px}
+  label{display:block;margin-top:12px;font-weight:600}
+  input,select{width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid #ddd}
+  button{margin-top:12px;padding:10px 14px;border-radius:8px;border:0;background:#222;color:#fff;cursor:pointer}
+  .output{margin-top:18px;padding:12px;border-radius:8px;background:#fbfbfb;border:1px solid #eee}
+  .shuffle-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:12px}
+  .card{padding:10px;border-radius:8px;background:white;border:1px solid #eee}
+  small{color:#666}
+  .points{font-weight:700;color:#2b8a3e}
+</style>
+</head>
+<body>
+<h1>Exercise Shuffle — MVP</h1>
+<p>Quick setup: fill your info and hit Generate. You’ll get daily steps, minutes, and a shuffled game-like routine you can follow. It runs entirely in your browser.</p>
+
+<div>
+  <label>Age <input id="age" type="number" value="35" /></label>
+  <label>Sex <select id="sex"><option value="female">Female</option><option value="male">Male</option></select></label>
+  <label>Height (cm) <input id="height" type="number" value="165" /></label>
+  <label>Weight (lb) <input id="weight" type="number" value="180" /></label>
+  <label>Target weight (lb) <input id="targetWeight" type="number" value="160" /></label>
+  <label>Timeline (weeks) <input id="weeks" type="number" value="12" /></label>
+  <label>Activity level <select id="activity">
+    <option value="1.2">Sedentary</option>
+    <option value="1.375">Light</option>
+    <option value="1.55">Moderate</option>
+    <option value="1.725">Active</option>
+  </select></label>
+  <label>Days/week you will exercise <input id="daysPerWeek" type="number" value="5" min="1" max="7" /></label>
+
+  <button id="generate">Generate Plan & Shuffle</button>
+</div>
+
+<div class="output" id="result" style="display:none">
+  <div id="summary"></div>
+  <div id="targets" style="margin-top:10px"></div>
+  <div id="shuffle"></div>
+</div>
+
+<script>
+(function(){
+  // utility
+  function round(n, decimals=0){ return Number(Math.round(n + 'e' + decimals) + 'e-' + decimals); }
+
+  // MET lookups
+  const MET = {
+    walk_brisk: 4.0,
+    dance_mod: 5.5,
+    strength: 4.0,
+    yoga: 3.0,
+    skating_style: 4.5
+  };
+
+  const exercises = [
+    {name:'Brisk walk (10 min)', type:'walk', minutes:10, pts:10},
+    {name:'Dance combo (5 min)', type:'dance', minutes:5, pts:12},
+    {name:'Bodyweight squats (15)', type:'strength', reps:15, pts:8},
+    {name:'Push-ups (10)', type:'strength', reps:10, pts:9},
+    {name:'Plank (45 sec)', type:'strength', minutes:0.75, pts:8},
+    {name:'Yoga flow (10 min)', type:'yoga', minutes:10, pts:9},
+    {name:'Balance skate step (8 min)', type:'skate', minutes:8, pts:11},
+    {name:'High-knee march (3 min)', type:'cardio', minutes:3, pts:6}
+  ];
+
+  function kg(lb){ return lb/2.2046226218; }
+  function cmToM(cm){return cm/100;}
+
+  function bmrCalc(sex, weightKg, heightCm, age){
+    // Mifflin-St Jeor
+    if(sex==='male') return 10*weightKg + 6.25*heightCm - 5*age + 5;
+    return 10*weightKg + 6.25*heightCm - 5*age - 161;
+  }
+
+  function kcalPerMinFromMET(met, weightKg){
+    // formula: kcal/min = MET * 3.5 * weight_kg / 200
+    return met * 3.5 * weightKg / 200;
+  }
+
+  function shuffleArray(a){
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+  }
+
+  document.getElementById('generate').addEventListener('click', ()=>{
+    const age = Number(document.getElementById('age').value)||30;
+    const sex = document.getElementById('sex').value;
+    const height = Number(document.getElementById('height').value)||165;
+    const weightLb = Number(document.getElementById('weight').value)||150;
+    const targetWeightLb = Number(document.getElementById('targetWeight').value)||weightLb;
+    const weeks = Math.max(1, Number(document.getElementById('weeks').value)||12);
+    const activityFactor = Number(document.getElementById('activity').value) || 1.2;
+    const daysPerWeek = Math.min(7, Math.max(1, Number(document.getElementById('daysPerWeek').value)||5));
+
+    const weightKg = kg(weightLb);
+    const targetLossLbs = Math.max(0, weightLb - targetWeightLb);
+    const totalKcalDeficit = targetLossLbs * 3500;
+    const days = weeks * 7;
+    let dailyKcalDeficit = days>0 ? totalKcalDeficit / days : 0;
+
+    // safety clamp to 1000 max deficit recommended
+    const recommendedMax = 1000;
+    if(dailyKcalDeficit > recommendedMax){
+      // we'll return it but flag
+    }
+
+    const bmr = bmrCalc(sex, weightKg, height, age);
+    const tdee = bmr * activityFactor;
+
+    // split deficit: 50% steps, 50% exercise (simple)
+    const stepsShare = 0.5;
+    const stepsKcal = dailyKcalDeficit * stepsShare;
+    const caloriesPerStep = 0.05; // avg
+    const extraSteps = Math.max(0, Math.round(stepsKcal / caloriesPerStep));
+
+    // choose preferred exercise style split across selected days
+    const exerciseKcal = Math.max(0, dailyKcalDeficit - stepsKcal);
+    // use dance as default exercise for fun
+    const met = MET.dance_mod;
+    const kcalPerMin = kcalPerMinFromMET(met, weightKg);
+    const minutesOfDance = kcalPerMin > 0 ? Math.round(exerciseKcal / kcalPerMin) : 0;
+
+    // create shuffle: combine items until minutes close to minutesOfDance or steps provide cardio
+    const shufflePool = exercises.slice();
+    shuffleArray(shufflePool);
+    let plan = [];
+    let totaledMinutes = 0;
+    let idx=0;
+    while(totaledMinutes < minutesOfDance && idx < shufflePool.length*3){
+      const item = shufflePool[idx % shufflePool.length];
+      plan.push(item);
+      totaledMinutes += item.minutes || 0;
+      idx++;
+    }
+
+    // Make simple daily plan summary
+    const resultEl = document.getElementById('result');
+    resultEl.style.display='block';
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<strong>Daily targets</strong><div style="margin-top:6px">
+      TDEE ≈ ${round(tdee,1)} kcal/day. Estimated daily deficit to reach ${targetLossLbs} lb in ${weeks} weeks: <strong>${round(dailyKcalDeficit,1)} kcal/day</strong>.
+      ${dailyKcalDeficit>1000 ? '<div style="color:crimson"><small>Warning: target implies >1000 kcal/day deficit. Consider extending timeline to be safer.</small></div>' : ''}
+      </div>`;
+
+    const targets = document.getElementById('targets');
+    targets.innerHTML = `<div><strong>Extra steps (approx):</strong> ${extraSteps.toLocaleString()} steps/day <small> (≈ ${round(stepsKcal,0)} kcal)</small></div>
+      <div><strong>Daily dance minutes:</strong> ${minutesOfDance} min <small> (≈ ${round(exerciseKcal,0)} kcal)</small></div>
+      <div style="margin-top:6px"><small>Split across ${daysPerWeek} exercise days: ~${Math.round(minutesOfDance*daysPerWeek/weeks)} minutes per session (rough)</small></div>`;
+
+    const shuffleDiv = document.getElementById('shuffle');
+    // render cards
+    let html = '<h3 style="margin-top:10px">Shuffle — your mini-games & combos</h3>';
+    html += '<div class="shuffle-list">';
+    plan.forEach(it=>{
+      html += `<div class="card"><div><strong>${it.name}</strong></div>
+        <div style="margin-top:6px"><small>Est time: ${it.minutes ? it.minutes+' min' : (it.reps?it.reps+' reps':'') } • Points: <span class="points">${it.pts}</span></small></div>
+      </div>`;
+    });
+    html += '</div>';
+    html += `<div style="margin-top:12px"><small>Tip: convert points into small rewards (1 point = 1 minute extra stretching, or a sticker on your chart). Make combos: complete 3 cards in a row for a 'scene' bonus.</small></div>`;
+    shuffleDiv.innerHTML = html;
+  });
+
+})();
+</script>
+</body>
+</html>
