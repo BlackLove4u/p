@@ -44,3 +44,20 @@ button:hover {
   margin-top: 20px;
   font-size: 1.1em;
 }
+
+button {
+  background: linear-gradient(90deg, #ffcc00, #ff5858);
+  border: none;
+  padding: 12px 24px;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #333;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  transform: scale(1.05);
+  background: linear-gradient(90deg, #ff5858, #f857a6);
+  color: white;
+}
