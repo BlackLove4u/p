@@ -1,35 +1,94 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// src/App.jsx
+import React, {useState, useEffect} from "react";
+import Auth from "./components/Auth";
+import WorkoutGenerator from "./components/WorkoutGenerator";
+import ProgressTracker from "./components/ProgressTracker";
+import { loadProfile, saveProfile } from "./utils/storage";
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App(){
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(loadProfile() || {
+    currentWeight: 180,
+    goalWeight: 160,
+    goalDays: 84,
+    prefStyle: "dance"
+  });
+
+  useEffect(()=> saveProfile(profile), [profile]);
+
+  function onAuth(userObj){
+    setUser(userObj);
+    // later: load Firestore profile
+  }
+
+  function handleSavePlan(plan){
+    const updated = {...profile, lastPlan: plan};
+    setProfile(updated);
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    <div className="app">
+      {!user ? (
+        <Auth onAuth={onAuth} />
+      ) : (
+        <>
+          <header>
+            <h1>Phoenix Rise Fitness</h1>
+            <p>Welcome — ready to move?</p>
+          </header>
 
-export default App
+          <main style={{display:'grid',gap:20,gridTemplateColumns:'1fr 320px'}}>
+            <div>
+              <WorkoutGenerator profile={profile} onSavePlan={handleSavePlan} />
+              <div style={{marginTop:16}}>
+                <h4>Profile</h4>
+                <label>Current weight: 
+                  <input 
+                    value={profile.currentWeight} 
+                    onChange={e=>setProfile({...profile,currentWeight: Number(e.target.value)})} 
+                  />
+                </label>
+                <label>Goal weight: 
+                  <input 
+                    value={profile.goalWeight} 
+                    onChange={e=>setProfile({...profile,goalWeight: Number(e.target.value)})} 
+                  />
+                </label>
+                <label>Days to goal: 
+                  <input 
+                    value={profile.goalDays} 
+                    onChange={e=>setProfile({...profile,goalDays: Number(e.target.value)})} 
+                  />
+                </label>
+                <label>Preferred style:
+                  <select 
+                    value={profile.prefStyle} 
+                    onChange={e=>setProfile({...profile,prefStyle:e.target.value})}>
+                    <option value="dance">dance</option>
+                    <option value="vibe">vibe</option>
+                    <option value="yoga">yoga</option>
+                    <option value="cardio">cardio</option>
+                    <option value="walk">walk</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <aside>
+              <ProgressTracker 
+                userProfile={profile} 
+                addPoints={(p)=>setProfile({...profile, points: (profile.points||0)+p})} 
+              />
+              <div style={{marginTop:12}}>
+                <h4>Quick Actions</h4>
+                <button onClick={()=>{navigator.vibrate ? navigator.vibrate([100,50,100]) : alert("Vibrate not supported")}}>
+                  Vibe test (vibrate)
+                </button>
+              </div>
+            </aside>
+          </main>
+        </>
+      )}
+    </div>
+  );
+}
